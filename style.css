@@ -220,6 +220,68 @@ select {
     padding: 0.52rem 0.58rem;
 }
 
+.number-input-wrap {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 2.2rem;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-sm);
+    background: var(--panel-soft);
+    overflow: hidden;
+}
+
+.number-input-wrap:focus-within {
+    outline: 2px solid var(--accent);
+    outline-offset: 1px;
+}
+
+.number-input-wrap input[type="number"] {
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    appearance: textfield;
+}
+
+.number-input-wrap input[type="number"]::-webkit-outer-spin-button,
+.number-input-wrap input[type="number"]::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+}
+
+.number-input-wrap input[type="number"]:focus-visible {
+    outline: none;
+}
+
+.number-stepper-group {
+    display: grid;
+    grid-template-rows: 1fr 1fr;
+    border-left: 1px solid var(--line);
+}
+
+.number-stepper {
+    border: 0;
+    border-radius: 0;
+    background: rgba(255, 255, 255, 0.04);
+    color: var(--text);
+    font-size: 0.84rem;
+    font-weight: 700;
+    line-height: 1;
+    padding: 0;
+    cursor: pointer;
+    min-height: 1.2rem;
+}
+
+.number-stepper + .number-stepper {
+    border-top: 1px solid var(--line);
+}
+
+.number-stepper:hover {
+    background: rgba(255, 255, 255, 0.12);
+}
+
+.number-stepper:active {
+    background: rgba(255, 255, 255, 0.2);
+}
+
 input[type="number"]:focus-visible,
 select:focus-visible,
 button:focus-visible,

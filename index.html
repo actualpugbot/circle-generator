@@ -37,20 +37,26 @@
                 <form id="generator-form" class="panel-card preview-card">
                     <div class="preview-header">
                         <div class="control-strip">
-                            <label class="inline-field" for="radius">
-                                <span>Radius</span>
-                                <input id="radius" name="radius" type="number" min="1" max="128" step="1" required>
+                            <label class="inline-field" for="width">
+                                <span>Width</span>
+                                <span class="number-input-wrap">
+                                    <input id="width" name="width" type="number" min="1" max="257" step="1" required>
+                                    <span class="number-stepper-group">
+                                        <button class="number-stepper" type="button" data-step-target="width" data-step-direction="up" aria-label="Increase width">&#9650;</button>
+                                        <button class="number-stepper" type="button" data-step-target="width" data-step-direction="down" aria-label="Decrease width">&#9660;</button>
+                                    </span>
+                                </span>
                             </label>
 
                             <label class="inline-field" for="thickness">
-                                <span>Outline thickness</span>
-                                <input id="thickness" name="thickness" type="number" min="1" max="16" step="1" required>
-                            </label>
-
-                            <label class="zoom-field" for="zoom">
-                                <span>Zoom</span>
-                                <input id="zoom" type="range" min="0" max="1000" value="620" step="1">
-                                <output id="zoom-value" for="zoom">12x</output>
+                                <span>Line thickness</span>
+                                <span class="number-input-wrap">
+                                    <input id="thickness" name="thickness" type="number" min="1" max="16" step="1" required>
+                                    <span class="number-stepper-group">
+                                        <button class="number-stepper" type="button" data-step-target="thickness" data-step-direction="up" aria-label="Increase line thickness">&#9650;</button>
+                                        <button class="number-stepper" type="button" data-step-target="thickness" data-step-direction="down" aria-label="Decrease line thickness">&#9660;</button>
+                                    </span>
+                                </span>
                             </label>
 
                             <label class="inline-field" for="view-mode">
@@ -64,10 +70,6 @@
                                 </select>
                             </label>
                         </div>
-                    </div>
-
-                    <div class="preview-meta">
-                        <span id="preview-size">0 x 0</span>
                     </div>
 
                     <div id="preview-shell" class="preview-shell">

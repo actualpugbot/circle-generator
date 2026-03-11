@@ -12,7 +12,7 @@ let dragStartScrollTop = 0;
 let ignoreCanvasClickUntil = 0;
 let currentZoom = data.zoom.default;
 
-const WORKER_CACHE_KEY = 1;
+const WORKER_CACHE_KEY = 3;
 const THEME_STORAGE_KEY = "circle_generator_theme";
 const DARK_THEME = "dark";
 const LIGHT_THEME = "light";
@@ -32,6 +32,7 @@ async function initializeApp() {
     cacheElements();
     setupThemeToggle();
     initializeInputs();
+    setupNumberSteppers();
     bindEvents();
     document.title = data.appTitle || "Circle Generator";
     updateThemeToggle(normalizeTheme(document.documentElement.getAttribute("data-theme")));
@@ -40,9 +41,44 @@ async function initializeApp() {
     requestGeneration();
 }
 
+function setupNumberSteppers() {
+    const stepperButtons = document.querySelectorAll(".number-stepper[data-step-target][data-step-direction]");
+    stepperButtons.forEach(function(button) {
+        button.addEventListener("click", function() {
+            const targetId = button.getAttribute("data-step-target");
+            const direction = button.getAttribute("data-step-direction") === "down" ? -1 : 1;
+            const input = document.getElementById(targetId);
+            if (!input || input.disabled) {
+                return;
+            }
+
+            const step = Number.parseFloat(input.step);
+            const min = Number.parseFloat(input.min);
+            const max = Number.parseFloat(input.max);
+            const current = Number.parseFloat(input.value);
+            const safeStep = Number.isFinite(step) && step > 0 ? step : 1;
+            let nextValue = Number.isFinite(current)
+                ? current + direction * safeStep
+                : (direction > 0 ? (Number.isFinite(min) ? min : 0) : (Number.isFinite(max) ? max : 0));
+
+            if (Number.isFinite(min)) {
+                nextValue = Math.max(min, nextValue);
+            }
+            if (Number.isFinite(max)) {
+                nextValue = Math.min(max, nextValue);
+            }
+
+            input.value = String(nextValue);
+            input.dispatchEvent(new Event("input", { bubbles: true }));
+            input.dispatchEvent(new Event("change", { bubbles: true }));
+            input.focus();
+        });
+    });
+}
+
 function cacheElements() {
     ui.form = document.getElementById("generator-form");
-    ui.radius = document.getElementById("radius");
+    ui.width = document.getElementById("width");
     ui.thickness = document.getElementById("thickness");
     ui.zoom = document.getElementById("zoom");
     ui.zoomValue = document.getElementById("zoom-value");
@@ -55,20 +91,24 @@ function cacheElements() {
 }
 
 function initializeInputs() {
-    ui.radius.min = String(data.minRadius);
-    ui.radius.max = String(data.maxRadius);
-    ui.radius.value = String(data.defaultRadius);
+    ui.width.min = String(data.minWidth);
+    ui.width.max = String(data.maxWidth);
+    ui.width.value = String(data.defaultWidth);
 
     ui.thickness.min = String(data.minThickness);
-    ui.thickness.max = String(Math.min(data.maxThickness, data.maxRadius));
+    ui.thickness.max = String(getThicknessLimitForWidth(data.maxWidth));
     ui.thickness.value = String(data.defaultThickness);
 
-    ui.zoom.min = String(data.zoom.sliderMin);
-    ui.zoom.max = String(data.zoom.sliderMax);
-    ui.zoom.step = String(data.zoom.sliderStep);
     currentZoom = clampNumber(data.zoom.default, data.zoom.min, data.zoom.max, data.zoom.default);
-    syncZoomSliderToCurrent();
-    updateZoomLabel();
+    if (ui.zoom) {
+        ui.zoom.min = String(data.zoom.sliderMin);
+        ui.zoom.max = String(data.zoom.sliderMax);
+        ui.zoom.step = String(data.zoom.sliderStep);
+        syncZoomSliderToCurrent();
+    }
+    if (ui.zoomValue) {
+        updateZoomLabel();
+    }
 }
 
 function bindEvents() {
@@ -77,18 +117,20 @@ function bindEvents() {
         requestGeneration();
     });
 
-    ui.radius.addEventListener("input", requestGeneration);
+    ui.width.addEventListener("input", requestGeneration);
     ui.thickness.addEventListener("input", requestGeneration);
-    ui.radius.addEventListener("change", requestGeneration);
+    ui.width.addEventListener("change", requestGeneration);
     ui.thickness.addEventListener("change", requestGeneration);
 
-    ui.zoom.addEventListener("input", function() {
-        currentZoom = sliderValueToZoom(ui.zoom.value);
-        updateZoomLabel();
-        if (lastResult) {
-            drawPreview(lastResult);
-        }
-    });
+    if (ui.zoom) {
+        ui.zoom.addEventListener("input", function() {
+            currentZoom = sliderValueToZoom(ui.zoom.value);
+            updateZoomLabel();
+            if (lastResult) {
+                drawPreview(lastResult);
+            }
+        });
+    }
     ui.viewMode.addEventListener("change", function() {
         if (lastResult) {
             renderResult(lastResult);
@@ -107,25 +149,25 @@ function requestGeneration() {
         resetWorker();
     }
 
-    const parsedRadius = Number.parseInt(ui.radius.value, 10);
+    const parsedWidth = Number.parseInt(ui.width.value, 10);
     const parsedThickness = Number.parseInt(ui.thickness.value, 10);
-    if (!Number.isFinite(parsedRadius) || !Number.isFinite(parsedThickness)) {
+    if (!Number.isFinite(parsedWidth) || !Number.isFinite(parsedThickness)) {
         return;
     }
 
-    const radius = clampInt(parsedRadius, data.minRadius, data.maxRadius, data.defaultRadius);
-    const maxThicknessForRadius = Math.min(data.maxThickness, radius);
-    const thickness = clampInt(parsedThickness, data.minThickness, maxThicknessForRadius, data.defaultThickness);
+    const width = normalizeWidth(parsedWidth);
+    const maxThicknessForWidth = getThicknessLimitForWidth(width);
+    const thickness = clampInt(parsedThickness, data.minThickness, maxThicknessForWidth, data.defaultThickness);
     const centerX = data.defaultCenter.x;
     const centerY = data.defaultCenter.y;
     const centerZ = data.defaultCenter.z;
 
-    ui.radius.value = String(radius);
-    ui.thickness.max = String(maxThicknessForRadius);
+    ui.width.value = String(width);
+    ui.thickness.max = String(maxThicknessForWidth);
     ui.thickness.value = String(thickness);
 
     const payload = {
-        radius: radius,
+        width: width,
         thickness: thickness,
         centerX: centerX,
         centerY: centerY,
@@ -170,16 +212,6 @@ function handleWorkerMessage(event) {
 }
 
 function renderResult(result) {
-    const viewBounds = getViewBounds(result, getCurrentViewMode());
-    const width = viewBounds.maxColumn - viewBounds.minColumn;
-    const height = viewBounds.maxRow - viewBounds.minRow;
-
-    if (getCurrentViewMode() === VIEW_MODE_FULL) {
-        ui.previewSize.textContent = width + " x " + height;
-    } else {
-        ui.previewSize.textContent = width + " x " + height + " (quarter)";
-    }
-
     drawPreview(result);
 }
 
@@ -219,8 +251,9 @@ function drawPreview(result) {
         }
     }
 
-    const centerLineX = (result.radius - viewBounds.minColumn) * zoom + zoom / 2;
-    const centerLineY = (result.radius - viewBounds.minRow) * zoom + zoom / 2;
+    const centerOffset = getCenterOffset(result);
+    const centerLineX = (centerOffset - viewBounds.minColumn) * zoom + zoom / 2;
+    const centerLineY = (centerOffset - viewBounds.minRow) * zoom + zoom / 2;
     context.strokeStyle = document.documentElement.getAttribute("data-theme") === LIGHT_THEME ? "#8ca8ce" : "#3c5d87";
     context.lineWidth = 1;
 
@@ -250,8 +283,8 @@ function drawPreview(result) {
         }
 
         const pointKey = serializePoint(point.x, point.z);
-        const column = point.x + result.radius;
-        const row = result.radius - point.z;
+        const column = point.x + centerOffset;
+        const row = centerOffset - point.z;
         const pixelX = (column - viewBounds.minColumn) * zoom;
         const pixelY = (row - viewBounds.minRow) * zoom;
         const inset = zoom >= 6 ? Math.max(1, Math.floor(zoom * 0.12)) : 0;
@@ -360,12 +393,14 @@ function handleCanvasClick(event) {
     const column = Math.floor(canvasX / zoom) + viewBounds.minColumn;
     const row = Math.floor(canvasY / zoom) + viewBounds.minRow;
 
-    if (column < 0 || row < 0 || column >= lastResult.diameter || row >= lastResult.diameter) {
+    const resultWidth = getResultWidth(lastResult);
+    if (column < 0 || row < 0 || column >= resultWidth || row >= resultWidth) {
         return;
     }
 
-    const pointX = column - lastResult.radius;
-    const pointZ = lastResult.radius - row;
+    const centerOffset = getCenterOffset(lastResult);
+    const pointX = column - centerOffset;
+    const pointZ = centerOffset - row;
     if (!isPointVisibleInCurrentView(pointX, pointZ)) {
         return;
     }
@@ -430,23 +465,55 @@ function isPointVisibleInCurrentView(pointX, pointZ) {
 }
 
 function getViewBounds(result, mode) {
-    const diameter = result.diameter;
-    const radius = result.radius;
+    const width = getResultWidth(result);
+    const centerOffset = getCenterOffset(result);
+    const lowerHalfMaxColumn = Math.floor(centerOffset) + 1;
+    const upperHalfMinColumn = Math.ceil(centerOffset);
+    const upperHalfMinRow = Math.ceil(centerOffset);
+    const lowerHalfMaxRow = Math.floor(centerOffset) + 1;
 
     if (mode === VIEW_MODE_NE) {
-        return { minColumn: radius, maxColumn: diameter, minRow: 0, maxRow: Math.min(diameter, radius + 1) };
+        return { minColumn: upperHalfMinColumn, maxColumn: width, minRow: 0, maxRow: Math.min(width, lowerHalfMaxRow) };
     }
     if (mode === VIEW_MODE_NW) {
-        return { minColumn: 0, maxColumn: Math.min(diameter, radius + 1), minRow: 0, maxRow: Math.min(diameter, radius + 1) };
+        return { minColumn: 0, maxColumn: Math.min(width, lowerHalfMaxColumn), minRow: 0, maxRow: Math.min(width, lowerHalfMaxRow) };
     }
     if (mode === VIEW_MODE_SE) {
-        return { minColumn: radius, maxColumn: diameter, minRow: radius, maxRow: diameter };
+        return { minColumn: upperHalfMinColumn, maxColumn: width, minRow: upperHalfMinRow, maxRow: width };
     }
     if (mode === VIEW_MODE_SW) {
-        return { minColumn: 0, maxColumn: Math.min(diameter, radius + 1), minRow: radius, maxRow: diameter };
+        return { minColumn: 0, maxColumn: Math.min(width, lowerHalfMaxColumn), minRow: upperHalfMinRow, maxRow: width };
     }
 
-    return { minColumn: 0, maxColumn: diameter, minRow: 0, maxRow: diameter };
+    return { minColumn: 0, maxColumn: width, minRow: 0, maxRow: width };
+}
+
+function getResultWidth(result) {
+    const parsedWidth = Number.parseInt(result.width, 10);
+    if (Number.isFinite(parsedWidth) && parsedWidth > 0) {
+        return parsedWidth;
+    }
+
+    const parsedDiameter = Number.parseInt(result.diameter, 10);
+    if (Number.isFinite(parsedDiameter) && parsedDiameter > 0) {
+        return parsedDiameter;
+    }
+
+    return data.defaultWidth;
+}
+
+function getCenterOffset(result) {
+    const parsedCenterOffset = Number.parseFloat(result.centerOffset);
+    if (Number.isFinite(parsedCenterOffset)) {
+        return parsedCenterOffset;
+    }
+
+    const parsedRadius = Number.parseFloat(result.radius);
+    if (Number.isFinite(parsedRadius)) {
+        return parsedRadius;
+    }
+
+    return (getResultWidth(result) - 1) / 2;
 }
 
 function showError(message) {
@@ -460,6 +527,10 @@ function clearError() {
 }
 
 function updateZoomLabel() {
+    if (!ui.zoomValue) {
+        return;
+    }
+
     const zoom = getCurrentZoom();
     if (zoom >= 10) {
         ui.zoomValue.textContent = Math.round(zoom) + "x";
@@ -477,6 +548,10 @@ function getCurrentZoom() {
 }
 
 function syncZoomSliderToCurrent() {
+    if (!ui.zoom) {
+        return;
+    }
+
     ui.zoom.value = String(Math.round(zoomToSliderValue(getCurrentZoom())));
 }
 
@@ -511,6 +586,15 @@ function clampInt(value, minimum, maximum, fallback) {
         return fallback;
     }
     return Math.max(minimum, Math.min(maximum, parsed));
+}
+
+function normalizeWidth(value) {
+    return clampInt(value, data.minWidth, data.maxWidth, data.defaultWidth);
+}
+
+function getThicknessLimitForWidth(width) {
+    const widthBasedLimit = Math.max(data.minThickness, Math.ceil((width - 1) / 2));
+    return Math.min(data.maxThickness, widthBasedLimit);
 }
 
 function clampNumber(value, minimum, maximum, fallback) {

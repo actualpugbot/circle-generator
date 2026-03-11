@@ -1,15 +1,15 @@
 const data = Object.freeze({
     appTitle: "Circle Generator",
     appTagline: "Design clean Minecraft circles in seconds",
-    minRadius: 1,
-    maxRadius: 128,
+    minWidth: 1,
+    maxWidth: 257,
     minThickness: 1,
     maxThickness: 16,
     minCoord: -30000000,
     maxCoord: 30000000,
     minY: -64,
     maxY: 320,
-    defaultRadius: 10,
+    defaultWidth: 21,
     defaultThickness: 1,
     defaultCenter: Object.freeze({
         x: 0,
