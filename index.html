@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <title>Circle Generator</title>
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <meta charset="utf-8">
+        <link rel="preconnect" href="https://fonts.googleapis.com">
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Silkscreen:wght@400;700&display=swap" rel="stylesheet">
+        <script src="data.js?1" defer></script>
+        <script src="script.js?1" defer></script>
+        <link rel="stylesheet" type="text/css" href="style.css?1">
+        <link rel="apple-touch-icon" sizes="180x180" href="./icons/apple-touch-icon.png">
+        <link rel="icon" href="./favicon.ico" sizes="any">
+        <link rel="icon" type="image/png" sizes="32x32" href="./icons/favicon-32x32.png">
+        <link rel="icon" type="image/png" sizes="16x16" href="./icons/favicon-16x16.png">
+        <link rel="manifest" href="./site.webmanifest">
+    </head>
+    <body>
+        <main class="app-shell">
+            <header class="app-header">
+                <div class="app-heading">
+                    <h1>Circle Generator</h1>
+                    <p id="app-tagline" class="subtitle">Design clean Minecraft circles in seconds</p>
+                </div>
+
+                <button id="theme-toggle" class="theme-toggle" type="button" aria-label="Switch to light mode" title="Switch to light mode">
+                    <span class="theme-toggle-track" aria-hidden="true">
+                        <span class="theme-toggle-icon theme-toggle-icon-dark"></span>
+                        <span class="theme-toggle-icon theme-toggle-icon-light"></span>
+                        <span class="theme-toggle-thumb"></span>
+                    </span>
+                </button>
+            </header>
+
+            <section class="workspace">
+                <form id="generator-form" class="panel-card preview-card">
+                    <div class="preview-header">
+                        <div class="control-strip">
+                            <label class="inline-field" for="radius">
+                                <span>Radius</span>
+                                <input id="radius" name="radius" type="number" min="1" max="128" step="1" required>
+                            </label>
+
+                            <label class="inline-field" for="thickness">
+                                <span>Outline thickness</span>
+                                <input id="thickness" name="thickness" type="number" min="1" max="16" step="1" required>
+                            </label>
+
+                            <label class="zoom-field" for="zoom">
+                                <span>Zoom</span>
+                                <input id="zoom" type="range" min="0" max="1000" value="620" step="1">
+                                <output id="zoom-value" for="zoom">12x</output>
+                            </label>
+
+                            <label class="inline-field" for="view-mode">
+                                <span>View</span>
+                                <select id="view-mode" name="view-mode">
+                                    <option value="full">Full circle</option>
+                                    <option value="ne">North-East quarter</option>
+                                    <option value="nw">North-West quarter</option>
+                                    <option value="se">South-East quarter</option>
+                                    <option value="sw">South-West quarter</option>
+                                </select>
+                            </label>
+                        </div>
+                    </div>
+
+                    <div class="preview-meta">
+                        <span id="preview-size">0 x 0</span>
+                    </div>
+
+                    <div id="preview-shell" class="preview-shell">
+                        <canvas id="circle-canvas" width="1" height="1" aria-label="Circle preview canvas"></canvas>
+                    </div>
+
+                    <section id="error" class="alert-card alert-inline" hidden>
+                        <strong>Unable to generate circle.</strong>
+                        <p id="error-message"></p>
+                    </section>
+                </form>
+            </section>
+
+            <footer class="footer">
+                <a class="footer-vibe-link" href="https://www.youtube.com/@actualpug" target="_blank" rel="noopener noreferrer" aria-label="Open ActualPug YouTube channel">Vibe coded with ❤️ by ActualPug</a>
+            </footer>
+        </main>
+    </body>
+</html>
