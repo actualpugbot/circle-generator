@@ -26,8 +26,13 @@
     --canvas-bg: #111722;
     --canvas-grid: #233145;
     --canvas-axis: #3f5f87;
+    --canvas-default-block: #5e9eff;
     --canvas-complete-block: #39be65;
     --canvas-cell-outline: rgba(229, 238, 252, 0.16);
+    --canvas-block-overlay-top: rgba(214, 233, 255, 0.24);
+    --canvas-block-overlay-mid: rgba(88, 142, 219, 0.08);
+    --canvas-block-overlay-bottom: rgba(8, 17, 32, 0.38);
+    --canvas-block-highlight: rgba(206, 228, 255, 0.22);
 }
 
 html[data-theme="light"] {
@@ -53,8 +58,13 @@ html[data-theme="light"] {
     --canvas-bg: #e7eef7;
     --canvas-grid: #c8d9ec;
     --canvas-axis: #7f9fc5;
+    --canvas-default-block: #4d88e6;
     --canvas-complete-block: #2a9650;
-    --canvas-cell-outline: rgba(17, 45, 76, 0.16);
+    --canvas-cell-outline: rgba(17, 45, 76, 0.24);
+    --canvas-block-overlay-top: rgba(255, 255, 255, 0.38);
+    --canvas-block-overlay-mid: rgba(255, 255, 255, 0.08);
+    --canvas-block-overlay-bottom: rgba(14, 43, 80, 0.2);
+    --canvas-block-highlight: rgba(255, 255, 255, 0.34);
 }
 
 *,

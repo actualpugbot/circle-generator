@@ -343,7 +343,8 @@ function drawPreview(result) {
     const selectedBlock = data.blocks.find(function(block) {
         return block.id === data.defaultBlockId;
     });
-    const blockColor = selectedBlock ? selectedBlock.color : "#9fa3a8";
+    const fallbackBlockColor = selectedBlock ? selectedBlock.color : "#9fa3a8";
+    const blockColor = previewStyle.defaultBlock || fallbackBlockColor;
     const completedBlockColor = previewStyle.completedBlock;
     const inset = zoom >= 6 ? Math.max(1, Math.floor(zoom * 0.12)) : 0;
     const drawSize = Math.max(zoom - inset * 2, 0.25);
@@ -363,10 +364,15 @@ function drawPreview(result) {
         const pixelY = originY + (row - viewBounds.minRow) * zoom;
         const blockLeft = pixelX + inset;
         const blockTop = pixelY + inset;
+        const isCompletedPoint = completedPointKeys.has(pointKey);
+        const shouldStyleBlockSurface = !isCompletedPoint;
 
-        context.fillStyle = completedPointKeys.has(pointKey) ? completedBlockColor : blockColor;
+        context.fillStyle = isCompletedPoint ? completedBlockColor : blockColor;
         if (shouldRoundBlocks) {
             fillRoundedRect(context, blockLeft, blockTop, drawSize, drawSize, blockCornerRadius);
+            if (shouldStyleBlockSurface && drawSize >= 4) {
+                paintBlockSurfaceOverlay(context, blockLeft, blockTop, drawSize, drawSize, blockCornerRadius, previewStyle);
+            }
             if (shouldOutlineBlocks) {
                 const strokeInset = 0.5;
                 const strokeSize = drawSize - strokeInset * 2;
@@ -387,6 +393,9 @@ function drawPreview(result) {
         }
 
         context.fillRect(blockLeft, blockTop, drawSize, drawSize);
+        if (shouldStyleBlockSurface && drawSize >= 4) {
+            paintBlockSurfaceOverlay(context, blockLeft, blockTop, drawSize, drawSize, 0, previewStyle);
+        }
     });
 
     if (isMeasurementOverlayEnabled()) {
@@ -516,9 +525,37 @@ function getPreviewStyle() {
         background: readCssColor(rootStyle, "--canvas-bg", isLightTheme ? "#e7eef7" : "#111722"),
         gridLine: readCssColor(rootStyle, "--canvas-grid", isLightTheme ? "#c8d9ec" : "#233145"),
         axisLine: readCssColor(rootStyle, "--canvas-axis", isLightTheme ? "#7f9fc5" : "#3f5f87"),
+        defaultBlock: readCssColor(rootStyle, "--canvas-default-block", isLightTheme ? "#4d88e6" : "#5e9eff"),
         completedBlock: readCssColor(rootStyle, "--canvas-complete-block", isLightTheme ? "#2a9650" : "#39be65"),
         cellOutline: readCssColor(rootStyle, "--canvas-cell-outline", isLightTheme ? "rgba(17, 45, 76, 0.16)" : "rgba(229, 238, 252, 0.16)"),
+        blockOverlayTop: readCssColor(rootStyle, "--canvas-block-overlay-top", "rgba(255, 255, 255, 0)"),
+        blockOverlayMid: readCssColor(rootStyle, "--canvas-block-overlay-mid", "rgba(255, 255, 255, 0)"),
+        blockOverlayBottom: readCssColor(rootStyle, "--canvas-block-overlay-bottom", "rgba(0, 0, 0, 0)"),
+        blockHighlight: readCssColor(rootStyle, "--canvas-block-highlight", "rgba(255, 255, 255, 0)"),
     };
+}
+
+function paintBlockSurfaceOverlay(context, left, top, width, height, radius, previewStyle) {
+    const gradient = context.createLinearGradient(0, top, 0, top + height);
+    gradient.addColorStop(0, previewStyle.blockOverlayTop);
+    gradient.addColorStop(0.45, previewStyle.blockOverlayMid);
+    gradient.addColorStop(1, previewStyle.blockOverlayBottom);
+    context.fillStyle = gradient;
+
+    if (radius > 0.1) {
+        fillRoundedRect(context, left, top, width, height, radius);
+    } else {
+        context.fillRect(left, top, width, height);
+    }
+
+    if (height >= 6) {
+        const highlightInset = radius > 0.1 ? 1 : 0;
+        const highlightWidth = width - highlightInset * 2;
+        if (highlightWidth > 0.75) {
+            context.fillStyle = previewStyle.blockHighlight;
+            context.fillRect(left + highlightInset, top + highlightInset, highlightWidth, 1);
+        }
+    }
 }
 
 function readCssColor(rootStyle, variableName, fallback) {

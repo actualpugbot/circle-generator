@@ -25,7 +25,7 @@ const data = Object.freeze({
         wheelSensitivity: 0.0018,
     }),
     blocks: Object.freeze([
-        Object.freeze({ id: "stone", label: "Stone", color: "#9fa3a8" }),
+        Object.freeze({ id: "stone", label: "Stone", color: "#4d88e6" }),
         Object.freeze({ id: "deepslate", label: "Deepslate", color: "#545a64" }),
         Object.freeze({ id: "oak_planks", label: "Oak Planks", color: "#be9f68" }),
         Object.freeze({ id: "spruce_planks", label: "Spruce Planks", color: "#8e6a44" }),
