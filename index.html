@@ -21,7 +21,6 @@
             <header class="app-header">
                 <div class="app-heading">
                     <h1>Circle Generator</h1>
-                    <p id="app-tagline" class="subtitle">Design clean Minecraft circles in seconds</p>
                 </div>
 
                 <button id="theme-toggle" class="theme-toggle" type="button" aria-label="Switch to light mode" title="Switch to light mode">
@@ -33,57 +32,79 @@
                 </button>
             </header>
 
-            <section class="workspace">
-                <form id="generator-form" class="panel-card preview-card">
-                    <div class="preview-header">
-                        <div class="control-strip">
-                            <label class="inline-field" for="width">
-                                <span>Width</span>
-                                <span class="number-input-wrap">
-                                    <input id="width" name="width" type="number" min="1" max="257" step="1" required>
-                                    <span class="number-stepper-group">
-                                        <button class="number-stepper" type="button" data-step-target="width" data-step-direction="up" aria-label="Increase width">&#9650;</button>
-                                        <button class="number-stepper" type="button" data-step-target="width" data-step-direction="down" aria-label="Decrease width">&#9660;</button>
-                                    </span>
+            <form id="generator-form" class="preview-card">
+                <div class="preview-header">
+                    <div class="control-strip">
+                        <label class="inline-field" for="width">
+                            <span>Width</span>
+                            <span class="number-input-wrap">
+                                <input id="width" name="width" type="number" min="1" max="257" step="1" required>
+                                <span class="number-stepper-group">
+                                    <button class="number-stepper" type="button" data-step-target="width" data-step-direction="up" aria-label="Increase width">
+                                        <svg class="number-stepper-icon" viewBox="0 0 12 12" aria-hidden="true" focusable="false">
+                                            <path d="M2.4 7.6L6 4l3.6 3.6" />
+                                        </svg>
+                                    </button>
+                                    <button class="number-stepper" type="button" data-step-target="width" data-step-direction="down" aria-label="Decrease width">
+                                        <svg class="number-stepper-icon" viewBox="0 0 12 12" aria-hidden="true" focusable="false">
+                                            <path d="M2.4 4.4L6 8l3.6-3.6" />
+                                        </svg>
+                                    </button>
                                 </span>
-                            </label>
+                            </span>
+                        </label>
 
-                            <label class="inline-field" for="thickness">
-                                <span>Line thickness</span>
-                                <span class="number-input-wrap">
-                                    <input id="thickness" name="thickness" type="number" min="1" max="16" step="1" required>
-                                    <span class="number-stepper-group">
-                                        <button class="number-stepper" type="button" data-step-target="thickness" data-step-direction="up" aria-label="Increase line thickness">&#9650;</button>
-                                        <button class="number-stepper" type="button" data-step-target="thickness" data-step-direction="down" aria-label="Decrease line thickness">&#9660;</button>
-                                    </span>
+                        <label class="inline-field" for="thickness">
+                            <span>Line thickness</span>
+                            <span class="number-input-wrap">
+                                <input id="thickness" name="thickness" type="number" min="1" max="16" step="1" required>
+                                <span class="number-stepper-group">
+                                    <button class="number-stepper" type="button" data-step-target="thickness" data-step-direction="up" aria-label="Increase line thickness">
+                                        <svg class="number-stepper-icon" viewBox="0 0 12 12" aria-hidden="true" focusable="false">
+                                            <path d="M2.4 7.6L6 4l3.6 3.6" />
+                                        </svg>
+                                    </button>
+                                    <button class="number-stepper" type="button" data-step-target="thickness" data-step-direction="down" aria-label="Decrease line thickness">
+                                        <svg class="number-stepper-icon" viewBox="0 0 12 12" aria-hidden="true" focusable="false">
+                                            <path d="M2.4 4.4L6 8l3.6-3.6" />
+                                        </svg>
+                                    </button>
                                 </span>
-                            </label>
+                            </span>
+                        </label>
 
-                            <label class="inline-field" for="view-mode">
-                                <span>View</span>
-                                <select id="view-mode" name="view-mode">
-                                    <option value="full">Full circle</option>
-                                    <option value="ne">North-East quarter</option>
-                                    <option value="nw">North-West quarter</option>
-                                    <option value="se">South-East quarter</option>
-                                    <option value="sw">South-West quarter</option>
-                                </select>
-                            </label>
-                        </div>
+                        <label class="inline-field inline-field-check" for="show-measurements">
+                            <span class="check-input-wrap">
+                                <input id="show-measurements" name="show-measurements" type="checkbox" checked>
+                                <span>Show measurements</span>
+                            </span>
+                        </label>
+
+                        <label class="inline-field inline-field-view" for="view-mode">
+                            <span>View</span>
+                            <select id="view-mode" name="view-mode">
+                                <option value="full">Full circle</option>
+                                <option value="ne">North-East quarter</option>
+                                <option value="nw">North-West quarter</option>
+                                <option value="se">South-East quarter</option>
+                                <option value="sw">South-West quarter</option>
+                            </select>
+                        </label>
                     </div>
+                </div>
 
-                    <div id="preview-shell" class="preview-shell">
-                        <canvas id="circle-canvas" width="1" height="1" aria-label="Circle preview canvas"></canvas>
-                    </div>
+                <div id="preview-shell" class="preview-shell">
+                    <canvas id="circle-canvas" width="1" height="1" aria-label="Circle preview canvas"></canvas>
+                </div>
 
-                    <section id="error" class="alert-card alert-inline" hidden>
-                        <strong>Unable to generate circle.</strong>
-                        <p id="error-message"></p>
-                    </section>
-                </form>
-            </section>
+                <section id="error" class="alert-card alert-inline" hidden>
+                    <strong>Unable to generate circle.</strong>
+                    <p id="error-message"></p>
+                </section>
+            </form>
 
             <footer class="footer">
+                <span class="footer-spacer" aria-hidden="true"></span>
                 <a class="footer-vibe-link" href="https://www.youtube.com/@actualpug" target="_blank" rel="noopener noreferrer" aria-label="Open ActualPug YouTube channel">Vibe coded with ❤️ by ActualPug</a>
             </footer>
         </main>

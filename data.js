@@ -1,6 +1,5 @@
 const data = Object.freeze({
     appTitle: "Circle Generator",
-    appTagline: "Design clean Minecraft circles in seconds",
     minWidth: 1,
     maxWidth: 257,
     minThickness: 1,
@@ -19,7 +18,7 @@ const data = Object.freeze({
     zoom: Object.freeze({
         min: 0.25,
         max: 96,
-        default: 12,
+        default: 30,
         sliderMin: 0,
         sliderMax: 1000,
         sliderStep: 1,
