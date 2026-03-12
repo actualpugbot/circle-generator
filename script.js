@@ -40,6 +40,7 @@ async function initializeApp() {
     cacheElements();
     setupThemeToggle();
     initializeInputs();
+    updateDownloadButtonState();
     setupNumberSteppers();
     bindEvents();
     document.title = data.appTitle || "Circle Generator";
@@ -88,6 +89,7 @@ function cacheElements() {
     ui.form = document.getElementById("generator-form");
     ui.width = document.getElementById("width");
     ui.thickness = document.getElementById("thickness");
+    ui.downloadImage = document.getElementById("download-image");
     ui.zoom = document.getElementById("zoom");
     ui.zoomValue = document.getElementById("zoom-value");
     ui.viewMode = document.getElementById("view-mode");
@@ -158,6 +160,9 @@ function bindEvents() {
     window.addEventListener("mousemove", handlePreviewDragMove);
     window.addEventListener("mouseup", handlePreviewDragEnd);
     ui.canvas.addEventListener("click", handleCanvasClick);
+    if (ui.downloadImage) {
+        ui.downloadImage.addEventListener("click", handleDownloadImageClick);
+    }
 }
 
 function requestGeneration() {
@@ -220,6 +225,7 @@ function handleWorkerMessage(event) {
         completedPointKeys = new Set();
         drawablePointKeys = buildDrawablePointKeys(lastResult);
         renderResult(lastResult, { recenter: true });
+        updateDownloadButtonState();
         return;
     }
 
@@ -1461,6 +1467,275 @@ function getCenterOffset(result) {
     }
 
     return (getResultWidth(result) - 1) / 2;
+}
+
+function getResultThickness(result) {
+    const parsedThickness = Number.parseInt(result.thickness, 10);
+    if (Number.isFinite(parsedThickness) && parsedThickness > 0) {
+        return parsedThickness;
+    }
+
+    const parsedInputThickness = Number.parseInt(ui.thickness ? ui.thickness.value : data.defaultThickness, 10);
+    if (Number.isFinite(parsedInputThickness) && parsedInputThickness > 0) {
+        return parsedInputThickness;
+    }
+
+    return data.defaultThickness;
+}
+
+function updateDownloadButtonState() {
+    if (!ui.downloadImage) {
+        return;
+    }
+
+    ui.downloadImage.disabled = !lastResult;
+}
+
+function handleDownloadImageClick() {
+    if (!lastResult || !ui.canvas) {
+        return;
+    }
+
+    const exportCanvas = buildDownloadCanvas(lastResult);
+    if (!exportCanvas) {
+        showError("Unable to export circle image.");
+        return;
+    }
+
+    try {
+        const downloadLink = document.createElement("a");
+        downloadLink.download = buildDownloadFileName(lastResult);
+        downloadLink.href = exportCanvas.toDataURL("image/png");
+        document.body.appendChild(downloadLink);
+        downloadLink.click();
+        document.body.removeChild(downloadLink);
+    } catch (_error) {
+        showError("Unable to export circle image.");
+    }
+}
+
+function buildDownloadCanvas(result) {
+    if (!ui.canvas) {
+        return null;
+    }
+
+    const sourceBounds = getDownloadSourceBounds(result);
+    const sourceWidth = Math.max(1, sourceBounds.right - sourceBounds.left);
+    const sourceHeight = Math.max(1, sourceBounds.bottom - sourceBounds.top);
+    const exportCanvas = document.createElement("canvas");
+    exportCanvas.width = sourceWidth;
+    exportCanvas.height = sourceHeight;
+
+    const context = exportCanvas.getContext("2d");
+    if (!context) {
+        return null;
+    }
+
+    context.imageSmoothingEnabled = false;
+    context.drawImage(
+        ui.canvas,
+        sourceBounds.left,
+        sourceBounds.top,
+        sourceWidth,
+        sourceHeight,
+        0,
+        0,
+        sourceWidth,
+        sourceHeight
+    );
+
+    return exportCanvas;
+}
+
+function getDownloadSourceBounds(result) {
+    const zoom = getCurrentZoom();
+    const layout = getPreviewLayout(result, zoom, getCurrentViewMode());
+    const baseBounds = {
+        left: Math.max(0, Math.floor(layout.paddingCells * zoom)),
+        top: Math.max(0, Math.floor(layout.paddingCells * zoom)),
+        right: Math.min(ui.canvas.width, Math.ceil((layout.paddingCells + layout.viewWidth) * zoom)),
+        bottom: Math.min(ui.canvas.height, Math.ceil((layout.paddingCells + layout.viewHeight) * zoom)),
+    };
+    const measurementBounds = getMeasurementOverlayBounds(result, layout, zoom);
+    const mergedBounds = mergeBounds(baseBounds, measurementBounds);
+    const exportPadding = 2;
+
+    return clampBoundsToCanvas({
+        left: Math.floor(mergedBounds.left - exportPadding),
+        top: Math.floor(mergedBounds.top - exportPadding),
+        right: Math.ceil(mergedBounds.right + exportPadding),
+        bottom: Math.ceil(mergedBounds.bottom + exportPadding),
+    });
+}
+
+function getMeasurementOverlayBounds(result, layout, zoom) {
+    if (!isMeasurementOverlayEnabled()) {
+        return null;
+    }
+
+    const overlayData = getMeasurementOverlayData(result);
+    if (!overlayData || !overlayData.runs.length) {
+        return null;
+    }
+
+    const visibleRuns = getVisibleMeasurementRuns(overlayData.runs, overlayData.centerOffset, getCurrentViewMode());
+    if (!visibleRuns.length) {
+        return null;
+    }
+
+    const originX = layout.paddingCells * zoom;
+    const originY = layout.paddingCells * zoom;
+    const viewBounds = layout.viewBounds;
+    const centerEdge = overlayData.centerEdge;
+    const fontSize = Math.max(10, Math.min(14, Math.round(zoom * 0.48)));
+    const lineOffset = Math.max(4, zoom * 0.52);
+    const lineOffsetStep = Math.max(3, zoom * 0.44);
+    const labelGap = Math.max(9, fontSize * 0.95);
+    const labelPadX = Math.max(3, Math.round(fontSize * 0.34));
+    const labelPadY = Math.max(2, Math.round(fontSize * 0.2));
+    const canvasMargin = 4;
+    const placedLabelRects = [];
+    const runs = visibleRuns.slice().sort(function(runA, runB) {
+        return runB.length - runA.length;
+    });
+    const measurementContext = getMeasurementTextContext();
+    if (!measurementContext) {
+        return null;
+    }
+
+    measurementContext.font = "600 " + fontSize + "px Inter, sans-serif";
+    let bounds = null;
+
+    runs.forEach(function(run) {
+        const text = String(run.length);
+        const metrics = measurementContext.measureText(text);
+        const textWidth = Math.max(1, metrics.width);
+        const labelWidth = textWidth + labelPadX * 2;
+        const labelHeight = fontSize + labelPadY * 2;
+        const geometry = getRunCanvasGeometry(run, centerEdge, originX, originY, viewBounds, zoom);
+        if (!geometry) {
+            return;
+        }
+
+        let placement = null;
+
+        for (let attempt = 0; attempt < MEASUREMENT_OVERLAY_MAX_ATTEMPTS; attempt += 1) {
+            const offset = lineOffset + attempt * lineOffsetStep;
+            const candidate = getRunPlacementCandidate(
+                geometry,
+                offset,
+                labelGap,
+                labelWidth,
+                labelHeight,
+                canvasMargin,
+                ui.canvas.width,
+                ui.canvas.height
+            );
+            if (!candidate) {
+                continue;
+            }
+
+            const hasCollision = placedLabelRects.some(function(existingRect) {
+                return rectanglesOverlap(existingRect, candidate.labelRect, 2);
+            });
+            if (hasCollision) {
+                continue;
+            }
+
+            placement = candidate;
+            break;
+        }
+
+        if (!placement) {
+            return;
+        }
+
+        const bracketBounds = getMeasurementBracketBounds(geometry, placement.bracketOffset);
+        bounds = mergeBounds(bounds, bracketBounds);
+        bounds = mergeBounds(bounds, placement.labelRect);
+        placedLabelRects.push(placement.labelRect);
+    });
+
+    return bounds;
+}
+
+function getMeasurementBracketBounds(geometry, bracketOffset) {
+    if (geometry.orientation === "horizontal") {
+        const edgeY = alignCanvasLine(geometry.startY);
+        const bracketY = alignCanvasLine(geometry.startY + geometry.normalY * bracketOffset);
+        const startX = alignCanvasLine(Math.min(geometry.startX, geometry.endX));
+        const endX = alignCanvasLine(Math.max(geometry.startX, geometry.endX));
+        return {
+            left: Math.min(startX, endX) - 1,
+            top: Math.min(edgeY, bracketY) - 1,
+            right: Math.max(startX, endX) + 1,
+            bottom: Math.max(edgeY, bracketY) + 1,
+        };
+    }
+
+    const edgeX = alignCanvasLine(geometry.startX);
+    const bracketX = alignCanvasLine(geometry.startX + geometry.normalX * bracketOffset);
+    const startY = alignCanvasLine(Math.min(geometry.startY, geometry.endY));
+    const endY = alignCanvasLine(Math.max(geometry.startY, geometry.endY));
+    return {
+        left: Math.min(edgeX, bracketX) - 1,
+        top: Math.min(startY, endY) - 1,
+        right: Math.max(edgeX, bracketX) + 1,
+        bottom: Math.max(startY, endY) + 1,
+    };
+}
+
+function getMeasurementTextContext() {
+    const canvas = document.createElement("canvas");
+    return canvas.getContext("2d");
+}
+
+function mergeBounds(primary, secondary) {
+    if (!primary) {
+        return secondary ? {
+            left: secondary.left,
+            top: secondary.top,
+            right: secondary.right,
+            bottom: secondary.bottom,
+        } : null;
+    }
+
+    if (!secondary) {
+        return {
+            left: primary.left,
+            top: primary.top,
+            right: primary.right,
+            bottom: primary.bottom,
+        };
+    }
+
+    return {
+        left: Math.min(primary.left, secondary.left),
+        top: Math.min(primary.top, secondary.top),
+        right: Math.max(primary.right, secondary.right),
+        bottom: Math.max(primary.bottom, secondary.bottom),
+    };
+}
+
+function clampBoundsToCanvas(bounds) {
+    const safeBounds = bounds || { left: 0, top: 0, right: 1, bottom: 1 };
+    const left = Math.max(0, Math.min(ui.canvas.width - 1, safeBounds.left));
+    const top = Math.max(0, Math.min(ui.canvas.height - 1, safeBounds.top));
+    const right = Math.max(left + 1, Math.min(ui.canvas.width, safeBounds.right));
+    const bottom = Math.max(top + 1, Math.min(ui.canvas.height, safeBounds.bottom));
+
+    return {
+        left: left,
+        top: top,
+        right: right,
+        bottom: bottom,
+    };
+}
+
+function buildDownloadFileName(result) {
+    const width = getResultWidth(result);
+    const thickness = getResultThickness(result);
+    return "circle-w" + width + "-t" + thickness + ".png";
 }
 
 function showError(message) {

@@ -397,6 +397,36 @@ select:disabled {
     min-width: 11.5rem;
 }
 
+.action-button {
+    align-self: flex-end;
+    min-height: 2.3rem;
+    padding: 0.52rem 0.82rem;
+    border: 1px solid color-mix(in srgb, var(--accent) 48%, var(--line) 52%);
+    border-radius: var(--radius-sm);
+    background: color-mix(in srgb, var(--accent) 22%, var(--panel-soft) 78%);
+    color: var(--text);
+    font-size: 0.86rem;
+    font-weight: 600;
+    letter-spacing: 0.01em;
+    line-height: 1;
+    cursor: pointer;
+    transition: border-color 120ms ease, background-color 120ms ease, transform 120ms ease, opacity 120ms ease;
+}
+
+.action-button:hover {
+    border-color: color-mix(in srgb, var(--accent) 68%, var(--line) 32%);
+    background: color-mix(in srgb, var(--accent) 32%, var(--panel-soft) 68%);
+}
+
+.action-button:active {
+    transform: translateY(0.5px);
+}
+
+.action-button:disabled {
+    opacity: 0.54;
+    cursor: not-allowed;
+}
+
 .check-input-wrap {
     display: inline-flex;
     align-items: center;
@@ -589,6 +619,11 @@ html[data-theme="light"] .preview-shell {
         min-width: 0;
         width: 100%;
         margin-left: 0;
+    }
+
+    .action-button {
+        align-self: stretch;
+        width: 100%;
     }
 
     .zoom-field {
