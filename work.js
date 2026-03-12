@@ -30,7 +30,6 @@ function buildCircle(payload) {
     const width = normalizeWidth(widthInput);
     const center_offset = (width - 1) / 2;
     const thickness = clampInteger(payload.thickness, 1, getThicknessLimitForWidth(width));
-    const effective_thickness = getEffectiveThickness(thickness);
     const center_x = normalizeInteger(payload.centerX, 0);
     const center_y = normalizeInteger(payload.centerY, 64);
     const center_z = normalizeInteger(payload.centerZ, 0);
@@ -40,25 +39,7 @@ function buildCircle(payload) {
     if (thickness === 1) {
         buildThinCirclePoints(width, relative_points);
     } else {
-        const radius_outer = center_offset + 0.5;
-        const radius_outer_sq = radius_outer * radius_outer;
-        const radius_inner = Math.max(0, center_offset - effective_thickness + 0.15);
-        const radius_inner_sq = radius_inner * radius_inner;
-
-        for (let row = 0; row < width; row += 1) {
-            const z = center_offset - row;
-            for (let column = 0; column < width; column += 1) {
-                const x = column - center_offset;
-                const distance_sq = x * x + z * z;
-                const include = distance_sq <= radius_outer_sq && distance_sq >= radius_inner_sq;
-
-                if (!include) {
-                    continue;
-                }
-
-                relative_points.push({ x: x, z: z });
-            }
-        }
+        buildLayeredCirclePoints(width, thickness, relative_points);
     }
 
     const absolute_points = relative_points.map(function(point) {
@@ -116,6 +97,75 @@ function buildThinCirclePoints(width, relative_points) {
     });
 }
 
+function buildLayeredCirclePoints(width, thickness, relative_points) {
+    const center_offset = (width - 1) / 2;
+    const radius_outer = center_offset + 0.5;
+    const radius_outer_sq = radius_outer * radius_outer;
+    const visited_cells = new Set();
+    const outline_points = [];
+    let frontier = [];
+
+    buildThinCirclePoints(width, outline_points);
+
+    for (const point of outline_points) {
+        const row = Math.round(center_offset - point.z);
+        const column = Math.round(point.x + center_offset);
+        if (row < 0 || row >= width || column < 0 || column >= width) {
+            continue;
+        }
+
+        const cell_key = row * width + column;
+        if (visited_cells.has(cell_key)) {
+            continue;
+        }
+
+        visited_cells.add(cell_key);
+        relative_points.push({ x: column - center_offset, z: center_offset - row });
+        frontier.push({ row: row, column: column });
+    }
+
+    for (let layer = 2; layer <= thickness && frontier.length > 0; layer += 1) {
+        const next_frontier = [];
+
+        for (const cell of frontier) {
+            addInwardNeighbor(cell.row + 1, cell.column, width, center_offset, radius_outer_sq, visited_cells, relative_points, next_frontier);
+            addInwardNeighbor(cell.row - 1, cell.column, width, center_offset, radius_outer_sq, visited_cells, relative_points, next_frontier);
+            addInwardNeighbor(cell.row, cell.column + 1, width, center_offset, radius_outer_sq, visited_cells, relative_points, next_frontier);
+            addInwardNeighbor(cell.row, cell.column - 1, width, center_offset, radius_outer_sq, visited_cells, relative_points, next_frontier);
+        }
+
+        frontier = next_frontier;
+    }
+
+    relative_points.sort(function(pointA, pointB) {
+        if (pointA.z !== pointB.z) {
+            return pointB.z - pointA.z;
+        }
+        return pointA.x - pointB.x;
+    });
+}
+
+function addInwardNeighbor(row, column, width, center_offset, radius_outer_sq, visited_cells, relative_points, frontier) {
+    if (row < 0 || row >= width || column < 0 || column >= width) {
+        return;
+    }
+
+    const cell_key = row * width + column;
+    if (visited_cells.has(cell_key)) {
+        return;
+    }
+
+    const x = column - center_offset;
+    const z = center_offset - row;
+    if (x * x + z * z > radius_outer_sq) {
+        return;
+    }
+
+    visited_cells.add(cell_key);
+    relative_points.push({ x: x, z: z });
+    frontier.push({ row: row, column: column });
+}
+
 function addMirroredOctantPoints(x, z, point_keys, relative_points) {
     addRelativePoint(x, z, point_keys, relative_points);
     addRelativePoint(z, x, point_keys, relative_points);
@@ -147,14 +197,6 @@ function normalizeWidth(value) {
 
 function getThicknessLimitForWidth(width) {
     return Math.max(1, Math.ceil((width - 1) / 2));
-}
-
-function getEffectiveThickness(thickness) {
-    if (thickness <= 1) {
-        // Keep "1" as the thinnest option without changing the heavier presets.
-        return 0.75;
-    }
-    return thickness;
 }
 
 function normalizeInteger(value, fallback) {

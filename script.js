@@ -53,7 +53,16 @@ async function initializeApp() {
 function setupNumberSteppers() {
     const stepperButtons = document.querySelectorAll(".number-stepper[data-step-target][data-step-direction]");
     stepperButtons.forEach(function(button) {
+        button.addEventListener("mousedown", function(event) {
+            // Keep mouse clicks from stealing focus and triggering focus-within flash.
+            event.preventDefault();
+        });
+
         button.addEventListener("click", function() {
+            if (button.disabled) {
+                return;
+            }
+
             const targetId = button.getAttribute("data-step-target");
             const direction = button.getAttribute("data-step-direction") === "down" ? -1 : 1;
             const input = document.getElementById(targetId);
@@ -80,9 +89,37 @@ function setupNumberSteppers() {
             input.value = String(nextValue);
             input.dispatchEvent(new Event("input", { bubbles: true }));
             input.dispatchEvent(new Event("change", { bubbles: true }));
-            input.focus();
         });
     });
+
+    syncNumberStepperStates();
+}
+
+function syncNumberStepperStates() {
+    const stepperButtons = document.querySelectorAll(".number-stepper[data-step-target][data-step-direction]");
+    stepperButtons.forEach(function(button) {
+        const targetId = button.getAttribute("data-step-target");
+        const direction = button.getAttribute("data-step-direction");
+        const input = document.getElementById(targetId);
+        if (!input || input.disabled) {
+            button.disabled = true;
+            return;
+        }
+
+        if (direction !== "down") {
+            button.disabled = false;
+            return;
+        }
+
+        const minimum = Number.parseFloat(input.min);
+        const current = Number.parseFloat(input.value);
+        button.disabled = Number.isFinite(minimum) && Number.isFinite(current) && current <= minimum;
+    });
+}
+
+function handleDimensionInput() {
+    syncNumberStepperStates();
+    requestGeneration();
 }
 
 function cacheElements() {
@@ -128,10 +165,10 @@ function bindEvents() {
         requestGeneration();
     });
 
-    ui.width.addEventListener("input", requestGeneration);
-    ui.thickness.addEventListener("input", requestGeneration);
-    ui.width.addEventListener("change", requestGeneration);
-    ui.thickness.addEventListener("change", requestGeneration);
+    ui.width.addEventListener("input", handleDimensionInput);
+    ui.thickness.addEventListener("input", handleDimensionInput);
+    ui.width.addEventListener("change", handleDimensionInput);
+    ui.thickness.addEventListener("change", handleDimensionInput);
 
     if (ui.zoom) {
         ui.zoom.addEventListener("input", function() {
@@ -186,6 +223,7 @@ function requestGeneration() {
     ui.width.value = String(width);
     ui.thickness.max = String(maxThicknessForWidth);
     ui.thickness.value = String(thickness);
+    syncNumberStepperStates();
 
     const payload = {
         width: width,

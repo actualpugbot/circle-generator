@@ -8,7 +8,7 @@ const data = Object.freeze({
     maxCoord: 30000000,
     minY: -64,
     maxY: 320,
-    defaultWidth: 21,
+    defaultWidth: 20,
     defaultThickness: 1,
     defaultCenter: Object.freeze({
         x: 0,

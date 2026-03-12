@@ -246,7 +246,7 @@ html[data-theme="light"] #view-mode {
     overflow: hidden;
 }
 
-.number-input-wrap:focus-within {
+.number-input-wrap:has(input[type="number"]:focus-visible) {
     outline: 2px solid var(--accent);
     outline-offset: 1px;
 }
@@ -294,16 +294,20 @@ html[data-theme="light"] #view-mode {
     border-top: 1px solid var(--line);
 }
 
-.number-stepper:hover {
+.number-stepper:not(:disabled):hover {
     background: color-mix(in srgb, var(--accent) 22%, transparent);
 }
 
-.number-stepper:active {
+.number-stepper:not(:disabled):active {
     background: color-mix(in srgb, var(--accent) 34%, transparent);
 }
 
-.number-stepper:focus-visible {
+.number-stepper:not(:disabled):focus-visible {
     outline: 0;
+}
+
+.number-stepper:disabled {
+    pointer-events: none;
 }
 
 .number-stepper-icon {
@@ -319,12 +323,12 @@ html[data-theme="light"] #view-mode {
     transition: color 120ms ease, transform 120ms ease;
 }
 
-.number-stepper:hover .number-stepper-icon,
-.number-stepper:focus-visible .number-stepper-icon {
+.number-stepper:not(:disabled):hover .number-stepper-icon,
+.number-stepper:not(:disabled):focus-visible .number-stepper-icon {
     color: color-mix(in srgb, var(--text) 55%, var(--accent) 45%);
 }
 
-.number-stepper:active .number-stepper-icon {
+.number-stepper:not(:disabled):active .number-stepper-icon {
     transform: scale(0.92);
 }
 
