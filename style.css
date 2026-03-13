@@ -606,8 +606,25 @@ html[data-theme="light"] .alert-card p {
     color: var(--muted);
 }
 
-.footer-spacer {
+.footer-project-links {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-self: start;
+    gap: 0.55rem;
     min-width: 0;
+}
+
+.footer-project-links a {
+    text-decoration: none;
+    color: var(--muted);
+    opacity: 0.74;
+    transition: opacity 0.2s ease;
+}
+
+.footer-project-links a:hover,
+.footer-project-links a:focus-visible {
+    opacity: 1;
 }
 
 .footer a,
@@ -681,8 +698,9 @@ html[data-theme="light"] .alert-card p {
         text-align: center;
     }
 
-    .footer-spacer {
-        display: none;
+    .footer-project-links {
+        justify-self: center;
+        justify-content: center;
     }
 
     .footer-vibe-link {
