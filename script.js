@@ -12,6 +12,8 @@ let dragStartScrollTop = 0;
 let ignoreCanvasClickUntil = 0;
 let currentZoom = data.zoom.default;
 let measurementOverlayCache = new WeakMap();
+let previewResizeObserver = null;
+let pendingPreviewFitFrame = 0;
 
 const WORKER_CACHE_KEY = 3;
 const THEME_STORAGE_KEY = "circle_generator_theme";
@@ -27,6 +29,8 @@ const PREVIEW_PADDING_MAX_PX = 1400;
 const PREVIEW_PADDING_RATIO = 0.6;
 const PREVIEW_PADDING_MIN_CELLS = 18;
 const PREVIEW_VIEWPORT_BUFFER_PX = 420;
+const PREVIEW_FIT_PADDING_PX = 28;
+const PREVIEW_FIT_MAX_ATTEMPTS = 4;
 const MAX_CANVAS_SIDE_PX = 32000;
 const MEASUREMENT_OVERLAY_MAX_ATTEMPTS = 6;
 
@@ -187,7 +191,7 @@ function bindEvents() {
     if (ui.showMeasurements) {
         ui.showMeasurements.addEventListener("change", function() {
             if (lastResult) {
-                drawPreview(lastResult);
+                renderResult(lastResult, { recenter: true });
             }
         });
     }
@@ -196,6 +200,7 @@ function bindEvents() {
     ui.previewShell.addEventListener("mousedown", handlePreviewDragStart);
     window.addEventListener("mousemove", handlePreviewDragMove);
     window.addEventListener("mouseup", handlePreviewDragEnd);
+    setupPreviewResizeHandling();
     ui.canvas.addEventListener("click", handleCanvasClick);
     if (ui.downloadImage) {
         ui.downloadImage.addEventListener("click", handleDownloadImageClick);
@@ -272,6 +277,10 @@ function handleWorkerMessage(event) {
 }
 
 function renderResult(result, options) {
+    if (options && options.recenter && fitPreviewToVisibleCircleContent(result)) {
+        return;
+    }
+
     drawPreview(result);
     if (options && options.recenter) {
         centerPreviewOnCircle(result);
@@ -1447,6 +1456,166 @@ function getViewBounds(result, mode) {
     return { minColumn: 0, maxColumn: width, minRow: 0, maxRow: width };
 }
 
+function fitPreviewToVisibleCircleContent(result) {
+    const mode = getCurrentViewMode();
+    if (!ui.previewShell || !ui.canvas) {
+        return false;
+    }
+
+    const cellBounds = getVisiblePointCellBounds(result, mode);
+    if (!cellBounds) {
+        return false;
+    }
+
+    let fitZoom = getFitZoomForCellBounds(cellBounds);
+    let contentBounds = null;
+
+    for (let attempt = 0; attempt < PREVIEW_FIT_MAX_ATTEMPTS; attempt += 1) {
+        currentZoom = fitZoom;
+        drawPreview(result);
+
+        const layout = getPreviewLayout(result, currentZoom, mode);
+        contentBounds = getPreviewContentBounds(result, cellBounds, layout, currentZoom);
+        const adjustedZoom = getFitZoomForCanvasBounds(contentBounds, currentZoom);
+        if (Math.abs(adjustedZoom - currentZoom) < 0.01) {
+            break;
+        }
+
+        fitZoom = adjustedZoom;
+    }
+
+    if (Math.abs(currentZoom - fitZoom) >= 0.01) {
+        currentZoom = fitZoom;
+        drawPreview(result);
+        contentBounds = getPreviewContentBounds(
+            result,
+            cellBounds,
+            getPreviewLayout(result, currentZoom, mode),
+            currentZoom
+        );
+    }
+
+    syncZoomSliderToCurrent();
+    updateZoomLabel();
+    focusPreviewOnCanvasBounds(contentBounds);
+    return true;
+}
+
+function getVisiblePointCellBounds(result, mode) {
+    if (!result || !Array.isArray(result.relativePoints) || !result.relativePoints.length) {
+        return null;
+    }
+
+    const centerOffset = getCenterOffset(result);
+    let minColumn = Infinity;
+    let maxColumn = -Infinity;
+    let minRow = Infinity;
+    let maxRow = -Infinity;
+
+    result.relativePoints.forEach(function(point) {
+        if (!isPointVisibleInView(point.x, point.z, mode)) {
+            return;
+        }
+
+        const column = toGridIndex(point.x + centerOffset);
+        const row = toGridIndex(centerOffset - point.z);
+
+        minColumn = Math.min(minColumn, column);
+        maxColumn = Math.max(maxColumn, column + 1);
+        minRow = Math.min(minRow, row);
+        maxRow = Math.max(maxRow, row + 1);
+    });
+
+    if (!Number.isFinite(minColumn) || !Number.isFinite(minRow)) {
+        return null;
+    }
+
+    return {
+        minColumn: minColumn,
+        maxColumn: maxColumn,
+        minRow: minRow,
+        maxRow: maxRow,
+    };
+}
+
+function getFitZoomForCellBounds(cellBounds) {
+    const shellWidth = ui.previewShell ? ui.previewShell.clientWidth : 0;
+    const shellHeight = ui.previewShell ? ui.previewShell.clientHeight : 0;
+    if (shellWidth <= 0 || shellHeight <= 0) {
+        return getCurrentZoom();
+    }
+
+    const boundsWidth = Math.max(1, cellBounds.maxColumn - cellBounds.minColumn);
+    const boundsHeight = Math.max(1, cellBounds.maxRow - cellBounds.minRow);
+    const availableWidth = Math.max(1, shellWidth - PREVIEW_FIT_PADDING_PX * 2);
+    const availableHeight = Math.max(1, shellHeight - PREVIEW_FIT_PADDING_PX * 2);
+    const fitZoom = Math.min(availableWidth / boundsWidth, availableHeight / boundsHeight);
+
+    return clampNumber(fitZoom, data.zoom.min, data.zoom.max, getCurrentZoom());
+}
+
+function getPreviewContentBounds(result, cellBounds, layout, zoom) {
+    const baseBounds = {
+        left: (layout.paddingCells + cellBounds.minColumn - layout.viewBounds.minColumn) * zoom,
+        top: (layout.paddingCells + cellBounds.minRow - layout.viewBounds.minRow) * zoom,
+        right: (layout.paddingCells + cellBounds.maxColumn - layout.viewBounds.minColumn) * zoom,
+        bottom: (layout.paddingCells + cellBounds.maxRow - layout.viewBounds.minRow) * zoom,
+    };
+
+    return mergeBounds(baseBounds, getMeasurementOverlayBounds(result, layout, zoom));
+}
+
+function getFitZoomForCanvasBounds(canvasBounds, zoom) {
+    if (!canvasBounds || !ui.previewShell) {
+        return zoom;
+    }
+
+    const shellWidth = ui.previewShell.clientWidth;
+    const shellHeight = ui.previewShell.clientHeight;
+    if (shellWidth <= 0 || shellHeight <= 0) {
+        return zoom;
+    }
+
+    const boundsWidth = Math.max(1, canvasBounds.right - canvasBounds.left);
+    const boundsHeight = Math.max(1, canvasBounds.bottom - canvasBounds.top);
+    const availableWidth = Math.max(1, shellWidth - PREVIEW_FIT_PADDING_PX * 2);
+    const availableHeight = Math.max(1, shellHeight - PREVIEW_FIT_PADDING_PX * 2);
+    const fitRatio = Math.min(1, availableWidth / boundsWidth, availableHeight / boundsHeight);
+
+    return clampNumber(zoom * fitRatio, data.zoom.min, data.zoom.max, zoom);
+}
+
+function focusPreviewOnCanvasBounds(canvasBounds) {
+    if (!canvasBounds || !ui.previewShell) {
+        return;
+    }
+
+    const shellPadding = getPreviewShellPadding();
+    const boundsLeft = shellPadding.left + canvasBounds.left;
+    const boundsRight = shellPadding.left + canvasBounds.right;
+    const boundsTop = shellPadding.top + canvasBounds.top;
+    const boundsBottom = shellPadding.top + canvasBounds.bottom;
+    const targetScrollLeft = boundsLeft + (boundsRight - boundsLeft) / 2 - ui.previewShell.clientWidth / 2;
+    const targetScrollTop = boundsTop + (boundsBottom - boundsTop) / 2 - ui.previewShell.clientHeight / 2;
+    const maxScrollLeft = Math.max(0, ui.previewShell.scrollWidth - ui.previewShell.clientWidth);
+    const maxScrollTop = Math.max(0, ui.previewShell.scrollHeight - ui.previewShell.clientHeight);
+
+    ui.previewShell.scrollLeft = clampNumber(targetScrollLeft, 0, maxScrollLeft, 0);
+    ui.previewShell.scrollTop = clampNumber(targetScrollTop, 0, maxScrollTop, 0);
+}
+
+function getPreviewShellPadding() {
+    if (!ui.previewShell) {
+        return { left: 0, top: 0 };
+    }
+
+    const shellStyle = getComputedStyle(ui.previewShell);
+    return {
+        left: clampNumber(shellStyle.paddingLeft, 0, Number.MAX_SAFE_INTEGER, 0),
+        top: clampNumber(shellStyle.paddingTop, 0, Number.MAX_SAFE_INTEGER, 0),
+    };
+}
+
 function getPreviewLayout(result, zoom, mode) {
     const viewBounds = getViewBounds(result, mode);
     const viewWidth = Math.max(1, viewBounds.maxColumn - viewBounds.minColumn);
@@ -1482,6 +1651,33 @@ function centerPreviewOnCircle(result) {
 
     ui.previewShell.scrollLeft = clampNumber(targetScrollLeft, 0, maxScrollLeft, 0);
     ui.previewShell.scrollTop = clampNumber(targetScrollTop, 0, maxScrollTop, 0);
+}
+
+function setupPreviewResizeHandling() {
+    if (!ui.previewShell) {
+        return;
+    }
+
+    if (typeof ResizeObserver === "function") {
+        previewResizeObserver = new ResizeObserver(schedulePreviewFit);
+        previewResizeObserver.observe(ui.previewShell);
+        return;
+    }
+
+    window.addEventListener("resize", schedulePreviewFit);
+}
+
+function schedulePreviewFit() {
+    if (pendingPreviewFitFrame || !lastResult) {
+        return;
+    }
+
+    pendingPreviewFitFrame = window.requestAnimationFrame(function() {
+        pendingPreviewFitFrame = 0;
+        if (lastResult) {
+            fitPreviewToVisibleCircleContent(lastResult);
+        }
+    });
 }
 
 function getCanvasPaddingCells(viewWidth, viewHeight, zoom) {
